@@ -38,26 +38,29 @@ class MockFunctionCall
 public:
 	MockFunctionCall(const char* function_name, const std::vector<mock_value_wrapper*>& params, const char* call_str, const char* filename, size_t line);
 	MockFunctionCall(const char* function_name, const std::vector<mock_value_wrapper*>& params);
-	MockFunctionCall(const MockFunctionCall& copy) = delete;
-	~MockFunctionCall();
 
-	bool has_return_type() const;
-	bool has_return() const;
-	bool has_exception() const;
+	const char* get_function_name() const { return m_function_name; }
+	const char* get_call_string() const { return m_call_string; }
+	const char* get_filename() const { return m_filename; }
+	size_t get_line() const { return m_line; }
 
-	void set_return_type(const std::type_info& type);
+	bool has_return_type() const { return (m_return_type != nullptr); }
+	bool has_return_value() const { return (bool)m_return_value; }
+	bool has_exception() const { return (bool)m_exception; }
+	bool has_callback() const { return (bool)m_callback; }
 
-	void set_return(mock_value_wrapper* value);
-	void set_exception(mock_value_wrapper* exception);
+	void set_return_type(const std::type_info& type) { m_return_type = &type; }
+	void set_return_value(mock_value_wrapper* value) { m_return_value.reset(value); }
+	void set_exception(mock_value_wrapper* exception) { m_exception.reset(exception); }
+	void set_callback(std::function<void()> callback) { m_callback = callback; }
+	void set_expected_calls(const std::queue<MockFunctionCall>& expected_calls) { m_callback_expected_calls = expected_calls; }
 
-	const char* get_function_name() const;
-	const char* get_call_string() const;
-	const char* get_filename() const;
-	size_t get_line() const;
 	const std::type_info& get_return_type() const;
+	std::shared_ptr<mock_value_wrapper> get_return_value() const { return m_return_value; }
+	std::shared_ptr<mock_value_wrapper> get_exception() const { return m_exception; }
+	std::queue<MockFunctionCall> get_expected_calls() const { return m_callback_expected_calls; }
 
-	mock_value_wrapper* get_return() const;
-	mock_value_wrapper* get_exception() const;
+	void call_callback() const { m_callback(); }
 
 	std::string to_string() const;
 
@@ -65,13 +68,16 @@ public:
 
 private:
 	const char* m_function_name;
-	std::vector<mock_value_wrapper*> m_parameters;
-	mock_value_wrapper* m_return;
-	mock_value_wrapper* m_exception;
 	const char* m_call_string;
 	const char* m_filename;
 	size_t m_line;
+
+	std::vector<std::shared_ptr<mock_value_wrapper>> m_parameters;
 	const std::type_info* m_return_type;
+	std::shared_ptr<mock_value_wrapper> m_return_value;
+	std::shared_ptr<mock_value_wrapper> m_exception;
+	std::function<void()> m_callback;
+	std::queue<MockFunctionCall> m_callback_expected_calls;
 };
 
 
@@ -79,19 +85,18 @@ static MockState g_mock_state = MOCK_STATE_IDLE;
 static const char* g_expect_call_str = nullptr;
 static const char* g_expect_filename = nullptr;
 static size_t g_expect_line = 0;
-static std::queue<MockFunctionCall> g_expected_calls;
+static std::vector<std::queue<MockFunctionCall>> g_expected_calls_stack;
 
 
 MockFunctionCall::MockFunctionCall(const char* function_name, const std::vector<mock_value_wrapper*>& params, const char* call_str, const char* filename, size_t line)
 	: m_function_name(function_name)
-	, m_parameters(params)
-	, m_return(nullptr)
-	, m_exception(nullptr)
 	, m_call_string(call_str)
 	, m_filename(filename)
 	, m_line(line)
 	, m_return_type(nullptr)
 {
+	for (mock_value_wrapper* param : params)
+		m_parameters.emplace_back(param);
 }
 
 MockFunctionCall::MockFunctionCall(const char* function_name, const std::vector<mock_value_wrapper*>& params)
@@ -99,79 +104,11 @@ MockFunctionCall::MockFunctionCall(const char* function_name, const std::vector<
 {
 }
 
-MockFunctionCall::~MockFunctionCall()
-{
-	for (auto param : m_parameters)
-		delete param;
-	delete m_return;
-	delete m_exception;
-}
-
-bool MockFunctionCall::has_return_type() const
-{
-	return (m_return_type != nullptr);
-}
-
-bool MockFunctionCall::has_return() const
-{
-	return (m_return != nullptr);
-}
-
-bool MockFunctionCall::has_exception() const
-{
-	return (m_exception != nullptr);
-}
-
-void MockFunctionCall::set_return_type(const std::type_info& type)
-{
-	m_return_type = &type;
-}
-
-void MockFunctionCall::set_return(mock_value_wrapper* value)
-{
-	m_return = value;
-}
-
-void MockFunctionCall::set_exception(mock_value_wrapper* exception)
-{
-	m_exception = exception;
-}
-
-const char* MockFunctionCall::get_function_name() const
-{
-	return m_function_name;
-}
-
-const char* MockFunctionCall::get_call_string() const
-{
-	return m_call_string;
-}
-
-const char* MockFunctionCall::get_filename() const
-{
-	return m_filename;
-}
-
-size_t MockFunctionCall::get_line() const
-{
-	return m_line;
-}
-
 const std::type_info& MockFunctionCall::get_return_type() const
 {
 	if (m_return_type == nullptr)
 		throw std::runtime_error("MockFunctionCall asking for return type when none");
 	return *m_return_type;
-}
-
-mock_value_wrapper* MockFunctionCall::get_return() const
-{
-	return m_return;
-}
-
-mock_value_wrapper* MockFunctionCall::get_exception() const
-{
-	return m_exception;
 }
 
 std::string MockFunctionCall::to_string() const
@@ -195,13 +132,14 @@ bool MockFunctionCall::match(const MockFunctionCall& second) const
 	if (m_parameters.size() != second.m_parameters.size())
 		return false;
 	for (size_t i = 0; i < m_parameters.size(); i++)
-		if (!m_parameters[i]->equals(second.m_parameters[i]))
+		if (!m_parameters[i]->equals(second.m_parameters[i].get()))
 			return false;
 	return true;
 }
 
 void mock_allocate_wrappers_to_vector(std::vector<mock_value_wrapper*>& result)
 {
+	// This is the base case.  There are no parameters to add to result.
 }
 
 static void mock_set_state(MockState new_state)
@@ -212,8 +150,8 @@ static void mock_set_state(MockState new_state)
 extern void mock_reset()
 {
 	mock_set_state(MOCK_STATE_IDLE);
-	while (!g_expected_calls.empty())
-		g_expected_calls.pop();
+	g_expected_calls_stack.clear();
+	g_expected_calls_stack.emplace_back();
 }
 
 extern void mock_verify()
@@ -225,11 +163,16 @@ extern void mock_verify()
 		FAIL("Mock internal error: state error (mock_verify %s).", to_string(g_mock_state));
 		throw std::runtime_error("Mock internal error: state error.");
 	}
-	if (!g_expected_calls.empty())
+	if (!g_expected_calls_stack.back().empty())
 	{
-		auto& expected = g_expected_calls.front();
-		FAIL("Mock missing %zd expected calls.  Next: '%s' %s:%zd", g_expected_calls.size(), expected.get_call_string(), expected.get_filename(), expected.get_line());
+		auto& expected = g_expected_calls_stack.back().front();
+		FAIL("Mock missing %zd expected calls.  Next: '%s' %s:%zd", g_expected_calls_stack.back().size(), expected.get_call_string(), expected.get_filename(), expected.get_line());
 		throw std::runtime_error("Mock missing expected call.");
+	}
+	if (g_expected_calls_stack.size() != 1)
+	{
+		FAIL("Mock missing callbacks");
+		throw std::runtime_error("Mock missing callbacks");
 	}
 }
 
@@ -270,12 +213,12 @@ extern void mock_end_expect(const char* call_str)
 		FAIL("Mock internal error: mismatched expect.");
 		throw std::runtime_error("Mock internal error: mismatched expect.");
 	}
-	if (g_expected_calls.empty())
+	if (g_expected_calls_stack.back().empty())
 	{
 		FAIL("Mock internal error: empty call queue.");
 		throw std::runtime_error("Mock internal error: empty call queue.");
 	}
-	auto& expected = g_expected_calls.back();
+	auto& expected = g_expected_calls_stack.back().back();
 	if (expected.has_return_type())
 		mock_set_state(MOCK_STATE_RECORD_DONE_WAITING_RETURN);
 	else
@@ -296,13 +239,13 @@ extern void mock_add_return(mock_value_wrapper* value, const char* value_str)
 		FAIL("Mock internal error: state error (mock_add_return %s).", to_string(g_mock_state));
 		throw std::runtime_error("Mock internal error: state error.");
 	}
-	if (g_expected_calls.empty())
+	if (g_expected_calls_stack.back().empty())
 	{
 		delete value;
 		FAIL("Mock internal error: empty call queue.");
 		throw std::runtime_error("Mock internal error: empty call queue.");
 	}
-	auto& expected = g_expected_calls.back();
+	auto& expected = g_expected_calls_stack.back().back();
 	if (expected.get_return_type() != value->get_type())
 	{
 		const char* expected_type_name = expected.get_return_type().name();
@@ -311,7 +254,7 @@ extern void mock_add_return(mock_value_wrapper* value, const char* value_str)
 		FAIL("Mock '%s' expects return type %s, but got %s with %s. %s:%zd", g_expect_call_str, expected_type_name, actual_type_name, value_str, g_expect_filename, g_expect_line);
 		throw std::runtime_error("Mock return type mismatch");
 	}
-	expected.set_return(value);
+	expected.set_return_value(value);
 	mock_set_state(MOCK_STATE_IDLE);
 }
 
@@ -323,13 +266,13 @@ extern void mock_add_exception(mock_value_wrapper* exception)
 		FAIL("Mock internal error: state error (mock_add_exception %s).", to_string(g_mock_state));
 		throw std::runtime_error("Mock internal error: state error.");
 	}
-	if (g_expected_calls.empty())
+	if (g_expected_calls_stack.back().empty())
 	{
 		delete exception;
 		FAIL("Mock internal error: empty call queue.");
 		throw std::runtime_error("Mock internal error: empty call queue.");
 	}
-	auto& expected = g_expected_calls.back();
+	auto& expected = g_expected_calls_stack.back().back();
 	expected.set_exception(exception);
 	mock_set_state(MOCK_STATE_IDLE);
 }
@@ -340,7 +283,7 @@ extern void mock_call(const std::vector<mock_value_wrapper*>& params, const char
 		mock_set_state(MOCK_STATE_IDLE);
 	if (g_mock_state == MOCK_STATE_RECORD_BEGIN)
 	{
-		g_expected_calls.emplace(function_name_str, params, g_expect_call_str, g_expect_filename, g_expect_line);
+		g_expected_calls_stack.back().emplace(function_name_str, params, g_expect_call_str, g_expect_filename, g_expect_line);
 		mock_set_state(MOCK_STATE_RECORD_CALLED);
 		return;
 	}
@@ -355,12 +298,12 @@ extern void mock_call(const std::vector<mock_value_wrapper*>& params, const char
 		FAIL("Mock internal error: state error (mock_call %s).", to_string(g_mock_state));
 		throw std::runtime_error("Mock internal error: state error.");
 	}
-	if (g_expected_calls.empty())
+	if (g_expected_calls_stack.back().empty())
 	{
 		FAIL("Mock unexpected call %s.", call.to_string().c_str());
 		throw std::runtime_error("Mock unexpected call.");
 	}
-	auto& expected = g_expected_calls.front();
+	auto& expected = g_expected_calls_stack.back().front();
 	if (!expected.match(call))
 	{
 		FAIL("Mock expected %s actual %s.", expected.to_string().c_str(), call.to_string().c_str());
@@ -368,20 +311,20 @@ extern void mock_call(const std::vector<mock_value_wrapper*>& params, const char
 	}
 	if (expected.has_exception())
 	{
-		std::unique_ptr<mock_value_wrapper> exception(expected.get_exception());
+		std::shared_ptr<mock_value_wrapper> exception = expected.get_exception();
 		expected.set_exception(nullptr);
-		g_expected_calls.pop();
+		g_expected_calls_stack.back().pop();
 		exception->throw_exception();
 		FAIL("Mock throw failed.");
 		throw std::runtime_error("Mock throw failed.");
 	}
-	if (expected.has_return())
+	if (expected.has_return_value())
 	{
 		mock_set_state(MOCK_STATE_PLAY_WAITING_RETURN);
 	}
 	else
 	{
-		g_expected_calls.pop();
+		g_expected_calls_stack.back().pop();
 		mock_set_state(MOCK_STATE_IDLE);
 	}
 }
@@ -390,8 +333,8 @@ extern void mock_return(mock_value_wrapper* result, const char* function_name_st
 {
 	if (g_mock_state == MOCK_STATE_RECORD_CALLED)
 	{
-		ASSERT(!g_expected_calls.empty());
-		auto& expected = g_expected_calls.back();
+		ASSERT(!g_expected_calls_stack.back().empty());
+		auto& expected = g_expected_calls_stack.back().back();
 		if (expected.has_return_type())
 		{
 			FAIL("Mock method has two returns.");
@@ -406,13 +349,21 @@ extern void mock_return(mock_value_wrapper* result, const char* function_name_st
 		FAIL("Mock internal error: state error (mock_return %s).", to_string(g_mock_state));
 		throw std::runtime_error("Mock internal error: state error.");
 	}
-	ASSERT(!g_expected_calls.empty());
-	auto& expected = g_expected_calls.front();
-	ASSERT(expected.has_return());
+	ASSERT(!g_expected_calls_stack.back().empty());
+	auto& expected = g_expected_calls_stack.back().front();
+	ASSERT(expected.has_return_value());
 	ASSERT(expected.get_return_type() == result->get_type());
-	result->set(expected.get_return());
-	g_expected_calls.pop();
+	result->set(expected.get_return_value().get());
+	g_expected_calls_stack.back().pop();
 	mock_set_state(MOCK_STATE_IDLE);
+}
+
+extern void mock_begin_callback(std::function<void()> callback)
+{
+}
+
+extern void mock_end_callback()
+{
 }
 
 TEST_START(MOCK_START)

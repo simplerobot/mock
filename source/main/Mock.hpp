@@ -9,7 +9,7 @@
 #endif
 
 #ifndef TEST
-#error Mock library only runs with testing.
+#error Mock library only runs when testing.
 #endif
 
 
@@ -17,6 +17,7 @@
 #include <vector>
 #include <string>
 #include <iostream>
+#include <functional>
 
 
 #define EXPECT(CALL) mock_begin_expect(#CALL, __FILE__, __LINE__); CALL ; mock_end_expect(#CALL)
@@ -26,6 +27,8 @@
 #define MOCK_CALL(...) std::vector<mock_value_wrapper*> mock_params = mock_allocate_wrappers(__VA_ARGS__); mock_call(mock_params, __PRETTY_FUNCTION__)
 #define MOCK_RETURN(TYPE) mock_value_type<TYPE> mock_result; mock_return(&mock_result, __PRETTY_FUNCTION__); return mock_result.get()
 
+#define EXPECT_BEGIN_CALLBACK(CALL) mock_begin_callback([&](){ CALL; })
+#define EXPECT_END_CALLBACK() mock_end_callback();
 
 class mock_value_wrapper
 {
@@ -190,3 +193,5 @@ extern void mock_add_return(mock_value_wrapper* value, const char* value_str);
 extern void mock_add_exception(mock_value_wrapper* exception);
 extern void mock_call(const std::vector<mock_value_wrapper*>& params, const char* function_name_str);
 extern void mock_return(mock_value_wrapper* result, const char* function_name_str);
+extern void mock_begin_callback(std::function<void()> callback);
+extern void mock_end_callback();

@@ -17,7 +17,7 @@ TEST_SOURCE_DIR = $(SOURCE_DIR)/test
 LIBRARY_FILES = $(notdir $(wildcard $(MAIN_SOURCE_DIR)/*))
 TEST_CPP_SOURCES = $(notdir $(wildcard $(MAIN_SOURCE_DIR)/*.cpp $(TEST_SOURCE_DIR)/*.cpp $(PKG_TEST_DIR)/*.cpp))
 
-VPATH = $(LIBRARY_BUILD_DIR) : $(TEST_SOURCE_DIR) : $(PKG_TEST_DIR)
+VPATH = $(MAIN_SOURCE_DIR) $(TEST_SOURCE_DIR) $(PKG_TEST_DIR)
 
 .PHONY: default all library test release clean
 
