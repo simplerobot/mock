@@ -8,7 +8,7 @@ TEST_BUILD_DIR = $(BUILD_DIR)/test
 RELEASE_DIR = $(BUILD_DIR)/release
 
 CC = g++
-CFLAGS = -Wall -Werror -DTEST -I$(LIBRARY_BUILD_DIR) -I$(PKG_TEST_DIR) -fsanitize=address -static-libasan -g -Og
+CFLAGS = -Wall -Werror -DTEST -I$(MAIN_SOURCE_DIR) -I$(PKG_TEST_DIR) -fsanitize=address -static-libasan -g -Og
 
 SOURCE_DIR = source
 MAIN_SOURCE_DIR = $(SOURCE_DIR)/main

@@ -42,10 +42,10 @@ TEST_CASE(mock_value_type_set)
 
 TEST_CASE(mock_allocate_wrapper_happy_case)
 {
-	std::unique_ptr<mock_value_wrapper> test_a(mock_allocate_wrapper(10));
-	std::unique_ptr<mock_value_wrapper> test_b(mock_allocate_wrapper(1.234));
-	std::unique_ptr<mock_value_wrapper> test_c(mock_allocate_wrapper('x'));
-	std::unique_ptr<mock_value_wrapper> test_d(mock_allocate_wrapper("abcd"));
+	std::shared_ptr<mock_value_wrapper> test_a(mock_allocate_wrapper(10));
+	std::shared_ptr<mock_value_wrapper> test_b(mock_allocate_wrapper(1.234));
+	std::shared_ptr<mock_value_wrapper> test_c(mock_allocate_wrapper('x'));
+	std::shared_ptr<mock_value_wrapper> test_d(mock_allocate_wrapper("abcd"));
 
 	ASSERT(test_a->get_type() == typeid(int));
 	ASSERT(test_b->get_type() == typeid(double));
@@ -58,11 +58,6 @@ TEST_CASE(mock_allocate_wrappers_happy_case)
 	auto result_a = mock_allocate_wrappers();
 	auto result_b = mock_allocate_wrappers(10);
 	auto result_c = mock_allocate_wrappers(10, 1.234, 'x', "abcd");
-
-	std::vector<std::unique_ptr<mock_value_wrapper>> cleanup;
-	for (auto& v : { result_a, result_b, result_c })
-		for (auto w : v)
-			cleanup.emplace_back(w);
 
 	ASSERT(result_a.size() == 0);
 	ASSERT(result_b.size() == 1);
@@ -90,6 +85,18 @@ static void MockTestHx(const char* data, size_t size)
 {
 	MOCK_CALL(MockData(data, size));
 }
+
+static void MockTestIx(int* out)
+{
+	MOCK_CALL();
+	MOCK_OUT(*out);
+}
+
+//static void MockTestJx(const char* in_data, size_t in_size, char* in_out_data, size_t in_out_size, char* out_data, size_t out_size)
+//{
+//	MOCK_CALL(MockData(in_data, in_size), MockData(in_out_data, in_out_size));
+//	MOCK_OUT(MockData(in_out_data, in_out_size), MockData(out_data, out_size));
+//}
 
 TEST_CASE(MOCK_HappyCase)
 {
@@ -314,5 +321,21 @@ TEST_CASE(MOCK_MockData_WrongSize)
 	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
 
 	ASSERT(!test_case.Run());
+}
+
+TEST_CASE(MOCK_OUT_HappyCase)
+{
+	auto test = [] {
+		int in = 0x1234;
+		EXPECT(MockTestIx(&in));
+		ASSERT(in == 0x1234);
+
+		int out = 0;
+		MockTestIx(&out);
+		ASSERT(out == 0x1234);
+	};
+	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
+
+	ASSERT(test_case.Run());
 }
 
