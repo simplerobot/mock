@@ -86,6 +86,11 @@ static void MockTestGx(int x, int y)
 	MOCK_CALL(x, y);
 }
 
+static void MockTestHx(const char* data, size_t size)
+{
+	MOCK_CALL(MockData(data, size));
+}
+
 TEST_CASE(MOCK_HappyCase)
 {
 	auto test = [] {
@@ -286,3 +291,28 @@ TEST_CASE(MOCK_Callback_DoubleCallback)
 
 	ASSERT(!test_case.Run());
 }
+
+TEST_CASE(MOCK_MockData_HappyCase)
+{
+	auto test = [] {
+		EXPECT(MockTestHx("ABCD", 4));
+
+		MockTestHx("ABCD", 4);
+	};
+	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
+
+	ASSERT(test_case.Run());
+}
+
+TEST_CASE(MOCK_MockData_WrongSize)
+{
+	auto test = [] {
+		EXPECT(MockTestHx("ABCD", 4));
+
+		MockTestHx("ABCD", 3);
+	};
+	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
+
+	ASSERT(!test_case.Run());
+}
+

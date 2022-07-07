@@ -185,6 +185,27 @@ std::vector<mock_value_wrapper*> mock_allocate_wrappers(TS... ts)
 	return result;
 }
 
+class MockData
+{
+public:
+	MockData(const uint8_t* ptr, size_t size);
+	MockData(uint8_t* ptr, size_t size);
+	MockData(const char* ptr, size_t size);
+	MockData(char* ptr, size_t size);
+
+	MockData& operator=(const MockData& second);
+
+	bool operator==(const MockData& second) const;
+
+	std::vector<uint8_t> get() const { return m_data; }
+
+private:
+	uint8_t* m_pointer;
+	std::vector<uint8_t> m_data;
+};
+
+extern std::ostream& operator<<(std::ostream& out, const MockData& data);
+
 
 extern void mock_reset();
 extern void mock_verify();

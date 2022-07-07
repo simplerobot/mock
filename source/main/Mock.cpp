@@ -5,6 +5,7 @@
 #include <cstring>
 #include <sstream>
 #include <memory>
+#include <iomanip>
 
 
 enum MockState
@@ -133,6 +134,64 @@ bool MockFunctionCall::match(const MockFunctionCall& second) const
 		if (!m_parameters[i]->equals(second.m_parameters[i].get()))
 			return false;
 	return true;
+}
+
+MockData::MockData(const uint8_t* ptr, size_t size)
+	: m_pointer(nullptr)
+	, m_data(ptr, ptr + size)
+{
+}
+
+MockData::MockData(uint8_t* ptr, size_t size)
+	: m_pointer(ptr)
+	, m_data(ptr, ptr + size)
+{
+}
+
+MockData::MockData(const char* ptr, size_t size)
+	: MockData((const uint8_t*)ptr, size)
+{
+}
+
+MockData::MockData(char* ptr, size_t size)
+	: MockData((uint8_t*)ptr, size)
+{
+}
+
+MockData& MockData::operator=(const MockData& second)
+{
+	if (m_data.size() < second.m_data.size())
+	{
+		FAIL("MockData setting %zd byte buffer with %zd bytes of data.", m_data.size(), second.m_data.size());
+		throw std::runtime_error("Mock Data buffer overflow");
+	}
+	if (m_pointer == nullptr)
+	{
+		FAIL("Setting data in constant MockData.");
+		throw std::runtime_error("Setting data in constant MockData");
+	}
+	m_data = second.m_data;
+	for (size_t i = 0; i < m_data.size(); i++)
+		m_pointer[i] = m_data[i];
+
+	return *this;
+}
+
+bool MockData::operator==(const MockData& second) const
+{
+	return (m_data == second.m_data);
+}
+
+extern std::ostream& operator<<(std::ostream& out, const MockData& data)
+{
+	out << "0x";
+	for (uint8_t x : data.get())
+		out << std::setw(2) << std::setfill('0') << std::hex << (uint32_t)x;
+	out << " '";
+	for (uint8_t x : data.get())
+		out.put(std::isprint(x) ? x : '?');
+	out << "'";
+	return out;
 }
 
 static void mock_set_state(MockState new_state)
