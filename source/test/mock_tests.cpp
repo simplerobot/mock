@@ -210,11 +210,9 @@ void MockTestCallback()
 TEST_CASE(MOCK_Callback_HappyCase)
 {
 	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-			EXPECT(MockTestGx(7, 6));
-		EXPECT_END_CALLBACK();
+		EXPECT(MockTestFx(1, 2, 3))_AND_DO(MockTestCallback())_AND_RETURN(10);
+		EXPECT(MockTestGx(9, 8));
+		EXPECT(MockTestGx(7, 6));
 		EXPECT(MockTestGx(3, 4));
 
 		MockTestFx(1, 2, 3);
@@ -228,12 +226,10 @@ TEST_CASE(MOCK_Callback_HappyCase)
 TEST_CASE(MOCK_Callback_MissingCall)
 {
 	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-			EXPECT(MockTestGx(7, 6));
-			EXPECT(MockTestGx(5, 4));
-		EXPECT_END_CALLBACK();
+		EXPECT(MockTestFx(1, 2, 3))_AND_DO(MockTestCallback())_AND_RETURN(10);
+		EXPECT(MockTestGx(9, 8));
+		EXPECT(MockTestGx(7, 6));
+		EXPECT(MockTestGx(5, 4));
 		EXPECT(MockTestGx(3, 4));
 
 		MockTestFx(1, 2, 3);
@@ -247,27 +243,8 @@ TEST_CASE(MOCK_Callback_MissingCall)
 TEST_CASE(MOCK_Callback_ExtraCall)
 {
 	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-		EXPECT_END_CALLBACK();
-		EXPECT(MockTestGx(3, 4));
-
-		MockTestFx(1, 2, 3);
-		MockTestGx(3, 4);
-	};
-	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
-
-	ASSERT(!test_case.Run());
-}
-
-TEST_CASE(MOCK_Callback_MissingEndCallback)
-{
-	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-			EXPECT(MockTestGx(7, 6));
+		EXPECT(MockTestFx(1, 2, 3))_AND_DO(MockTestCallback())_AND_RETURN(10);
+		EXPECT(MockTestGx(9, 8));
 		EXPECT(MockTestGx(3, 4));
 
 		MockTestFx(1, 2, 3);
@@ -281,9 +258,7 @@ TEST_CASE(MOCK_Callback_MissingEndCallback)
 TEST_CASE(MOCK_Callback_EmptyCallback)
 {
 	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK();
-		EXPECT_END_CALLBACK();
+		EXPECT(MockTestFx(1, 2, 3))_AND_DO()_AND_RETURN(10);
 		EXPECT(MockTestGx(3, 4));
 
 		MockTestFx(1, 2, 3);
@@ -297,15 +272,11 @@ TEST_CASE(MOCK_Callback_EmptyCallback)
 TEST_CASE(MOCK_Callback_DoubleCallback)
 {
 	auto test = [] {
-		EXPECT(MockTestFx(1, 2, 3))_AND_RETURN(10);
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-			EXPECT(MockTestGx(7, 6));
-		EXPECT_END_CALLBACK();
-		EXPECT_BEGIN_CALLBACK(MockTestCallback());
-			EXPECT(MockTestGx(9, 8));
-			EXPECT(MockTestGx(7, 6));
-		EXPECT_END_CALLBACK();
+		EXPECT(MockTestFx(1, 2, 3))_AND_DO(MockTestCallback())_AND_DO(MockTestCallback())_AND_RETURN(10);
+		EXPECT(MockTestGx(9, 8));
+		EXPECT(MockTestGx(7, 6));
+		EXPECT(MockTestGx(9, 8));
+		EXPECT(MockTestGx(7, 6));
 		EXPECT(MockTestGx(3, 4));
 
 		MockTestFx(1, 2, 3);

@@ -21,14 +21,13 @@
 
 
 #define EXPECT(CALL) mock_begin_expect(#CALL, __FILE__, __LINE__); CALL ; mock_end_expect(#CALL)
+#define _AND_DO(CALL) ; mock_add_callback([&](){ CALL; })
 #define _AND_RETURN(VALUE) ; mock_add_return(mock_allocate_wrapper(VALUE), #VALUE)
 #define _AND_THROW(EXCEPTION) ; mock_add_exception(mock_allocate_wrapper_simple(EXCEPTION))
 
 #define MOCK_CALL(...) std::vector<mock_value_wrapper*> mock_params = mock_allocate_wrappers(__VA_ARGS__); mock_call(mock_params, __PRETTY_FUNCTION__)
 #define MOCK_RETURN(TYPE) mock_value_type<TYPE> mock_result; mock_return(&mock_result, __PRETTY_FUNCTION__); return mock_result.get()
 
-#define EXPECT_BEGIN_CALLBACK(CALL) mock_begin_callback([&](){ CALL; })
-#define EXPECT_END_CALLBACK() mock_end_callback();
 
 class mock_value_wrapper
 {
@@ -167,7 +166,9 @@ mock_value_wrapper* mock_allocate_wrapper(const T& value)
 	return new mock_value_type<T>(value);
 }
 
-void mock_allocate_wrappers_to_vector(std::vector<mock_value_wrapper*>& result);
+inline void mock_allocate_wrappers_to_vector(std::vector<mock_value_wrapper*>& result)
+{
+}
 
 template <typename T, typename... TS>
 void mock_allocate_wrappers_to_vector(std::vector<mock_value_wrapper*>& result, const T& value, TS... ts)
@@ -189,9 +190,8 @@ extern void mock_reset();
 extern void mock_verify();
 extern void mock_begin_expect(const char* call_str, const char* file_name, size_t line);
 extern void mock_end_expect(const char* call_str);
+extern void mock_add_callback(std::function<void()> callback);
 extern void mock_add_return(mock_value_wrapper* value, const char* value_str);
 extern void mock_add_exception(mock_value_wrapper* exception);
 extern void mock_call(const std::vector<mock_value_wrapper*>& params, const char* function_name_str);
 extern void mock_return(mock_value_wrapper* result, const char* function_name_str);
-extern void mock_begin_callback(std::function<void()> callback);
-extern void mock_end_callback();
