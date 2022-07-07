@@ -89,14 +89,15 @@ static void MockTestHx(const char* data, size_t size)
 static void MockTestIx(int* out)
 {
 	MOCK_CALL();
-	MOCK_OUT(*out);
+	MOCK_OUTPUT(*out);
 }
 
-//static void MockTestJx(const char* in_data, size_t in_size, char* in_out_data, size_t in_out_size, char* out_data, size_t out_size)
-//{
-//	MOCK_CALL(MockData(in_data, in_size), MockData(in_out_data, in_out_size));
-//	MOCK_OUT(MockData(in_out_data, in_out_size), MockData(out_data, out_size));
-//}
+static void MockTestJx(char* out_data, size_t out_size)
+{
+	MockData out(out_data, out_size);
+	MOCK_CALL();
+	MOCK_OUTPUT(out);
+}
 
 TEST_CASE(MOCK_HappyCase)
 {
@@ -333,6 +334,23 @@ TEST_CASE(MOCK_OUT_HappyCase)
 		int out = 0;
 		MockTestIx(&out);
 		ASSERT(out == 0x1234);
+	};
+	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
+
+	ASSERT(test_case.Run());
+}
+
+TEST_CASE(MOCK_OUT_Data)
+{
+	auto test = [] {
+		char buffer_expected[5] = { 2, 3, 5, 7, 11 };
+		EXPECT(MockTestJx(buffer_expected, 5));
+
+		char buffer_actual[5] = {};
+		MockTestJx(buffer_actual, 5);
+
+		for (size_t i = 0; i < 5; i++)
+			ASSERT(buffer_expected[i] == buffer_actual[i]);
 	};
 	TestCaseListItem test_case(test, __FUNCTION__, __FILE__, __LINE__);
 

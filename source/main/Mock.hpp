@@ -27,7 +27,7 @@
 #define _AND_THROW(EXCEPTION) ; mock_add_exception(mock_allocate_wrapper_simple(EXCEPTION))
 
 #define MOCK_CALL(...) std::vector<std::shared_ptr<mock_value_wrapper>> mock_params = mock_allocate_wrappers(__VA_ARGS__); mock_call(mock_params, __PRETTY_FUNCTION__)
-#define MOCK_OUT(...) std::vector<std::shared_ptr<mock_value_wrapper>> mock_outputs = mock_allocate_wrappers(__VA_ARGS__);
+#define MOCK_OUTPUT(X) mock_output_typed(X)
 #define MOCK_RETURN(TYPE) mock_value_type<TYPE> mock_result; mock_return(&mock_result, __PRETTY_FUNCTION__); return mock_result.get()
 
 
@@ -89,6 +89,11 @@ public:
 	T get() const
 	{
 		return m_value;
+	}
+
+	void get(T& value) const
+	{
+		value = m_value;
 	}
 
 	void set(const T& value)
@@ -167,6 +172,12 @@ std::shared_ptr<mock_value_wrapper> mock_allocate_wrapper(const T& value)
 	return std::make_shared<mock_value_type<T>>(value);
 }
 
+template <typename T>
+mock_value_simple_type<T> mock_construct_wrapper_simple(const T& value)
+{
+	return mock_value_simple_type<T>(value);
+}
+
 inline void mock_allocate_wrappers_to_vector(std::vector<std::shared_ptr<mock_value_wrapper>>& result)
 {
 }
@@ -208,6 +219,15 @@ private:
 extern std::ostream& operator<<(std::ostream& out, const MockData& data);
 
 
+template <typename T>
+void mock_output_typed(T& t)
+{
+	auto result = std::make_shared<mock_value_simple_type<T>>(t);
+	mock_output(result);
+	result->get(t);
+}
+
+
 extern void mock_reset();
 extern void mock_verify();
 extern void mock_begin_expect(const char* call_str, const char* file_name, size_t line);
@@ -216,4 +236,5 @@ extern void mock_add_callback(std::function<void()> callback);
 extern void mock_add_return(const std::shared_ptr<mock_value_wrapper>& value, const char* value_str);
 extern void mock_add_exception(const std::shared_ptr<mock_value_wrapper>& exception);
 extern void mock_call(const std::vector<std::shared_ptr<mock_value_wrapper>>& params, const char* function_name_str);
+extern void mock_output(const std::shared_ptr<mock_value_wrapper>& output);
 extern void mock_return(mock_value_wrapper* result, const char* function_name_str);

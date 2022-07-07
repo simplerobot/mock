@@ -15,6 +15,7 @@ enum MockState
 	MOCK_STATE_RECORD_CALLED,
 	MOCK_STATE_RECORD_DONE,
 	MOCK_STATE_RECORD_DONE_WAITING_RETURN,
+	MOCK_STATE_PLAY_WAITING_OUTPUT,
 	MOCK_STATE_PLAY_WAITING_RETURN,
 };
 
@@ -28,6 +29,7 @@ static const char* to_string(MockState state)
 	case MOCK_STATE_RECORD_CALLED: return "called";
 	case MOCK_STATE_RECORD_DONE: return "done";
 	case MOCK_STATE_RECORD_DONE_WAITING_RETURN: return "done_wait_return";
+	case MOCK_STATE_PLAY_WAITING_OUTPUT: return "play_wait_output";
 	case MOCK_STATE_PLAY_WAITING_RETURN: return "play_wait_return";
 	default: return "<invalid>";
 	}
@@ -49,16 +51,19 @@ public:
 	bool has_return_value() const { return (bool)m_return_value; }
 	bool has_exception() const { return (bool)m_exception; }
 	bool has_callback() const { return (bool)m_callback; }
+	bool has_output() const { return (bool)m_output; }
 
 	void set_return_type(const std::type_info& type) { m_return_type = &type; }
 	void set_return_value(const std::shared_ptr<mock_value_wrapper>& value) { m_return_value = value; }
 	void set_exception(const std::shared_ptr<mock_value_wrapper>& exception) { m_exception = exception; }
 	void set_callback(std::function<void()> callback) { m_callback = callback; }
+	void set_output(const std::shared_ptr<mock_value_wrapper>& output) { m_output = output; }
 
 	const std::type_info& get_return_type() const;
 	std::shared_ptr<mock_value_wrapper> get_return_value() const { return m_return_value; }
 	std::shared_ptr<mock_value_wrapper> get_exception() const { return m_exception; }
 	std::function<void()> get_callback() const { return m_callback; }
+	std::shared_ptr<mock_value_wrapper> get_output() const { return m_output; }
 
 	void call_callback() const { m_callback(); }
 
@@ -77,6 +82,7 @@ private:
 	std::shared_ptr<mock_value_wrapper> m_return_value;
 	std::shared_ptr<mock_value_wrapper> m_exception;
 	std::function<void()> m_callback;
+	std::shared_ptr<mock_value_wrapper> m_output;
 };
 
 
@@ -378,6 +384,50 @@ extern void mock_call(const std::vector<std::shared_ptr<mock_value_wrapper>>& pa
 		FAIL("Mock throw failed.");
 		throw std::runtime_error("Mock throw failed.");
 	}
+	if (expected.has_output())
+	{
+		mock_set_state(MOCK_STATE_PLAY_WAITING_OUTPUT);
+	}
+	else if (expected.has_return_value())
+	{
+		mock_set_state(MOCK_STATE_PLAY_WAITING_RETURN);
+	}
+	else
+	{
+		auto callback = expected.get_callback();
+		g_expected_calls.pop();
+		mock_set_state(MOCK_STATE_IDLE);
+		if (callback)
+			callback();
+	}
+}
+
+extern void mock_output(const std::shared_ptr<mock_value_wrapper>& output)
+{
+	if (g_mock_state == MOCK_STATE_RECORD_CALLED)
+	{
+		ASSERT(!g_expected_calls.empty());
+		auto& expected = g_expected_calls.back();
+		if (expected.has_output())
+		{
+			FAIL("Mock method only currently supports a single output.");
+			throw std::runtime_error("Mock method only currently supports a single output.");
+		}
+		expected.set_output(output);
+		mock_set_state(MOCK_STATE_RECORD_CALLED);
+		return;
+	}
+	if (g_mock_state != MOCK_STATE_PLAY_WAITING_OUTPUT)
+	{
+		FAIL("Mock internal error: state error (mock_output %s).", to_string(g_mock_state));
+		throw std::runtime_error("Mock internal error: state error.");
+	}
+	ASSERT(!g_expected_calls.empty());
+	auto& expected = g_expected_calls.front();
+	ASSERT(expected.has_output());
+	auto saved_output = expected.get_output();
+	ASSERT(saved_output->get_type() == output->get_type());
+	output->set(saved_output);
 	if (expected.has_return_value())
 	{
 		mock_set_state(MOCK_STATE_PLAY_WAITING_RETURN);
