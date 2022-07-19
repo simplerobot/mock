@@ -6,6 +6,10 @@
 #include <sstream>
 #include <memory>
 #include <iomanip>
+#include "logger.h"
+
+
+LOGGER_ZONE(MOCK);
 
 
 enum MockState
@@ -206,6 +210,7 @@ static void mock_set_state(MockState new_state)
 
 extern void mock_reset()
 {
+	LOG_TRACE("reset");
 	mock_set_state(MOCK_STATE_IDLE);
 	while (!g_expected_calls.empty())
 		g_expected_calls.pop();
@@ -271,6 +276,7 @@ extern void mock_end_expect(const char* call_str)
 		throw std::runtime_error("Mock internal error: empty call queue.");
 	}
 	auto& expected = g_expected_calls.back();
+	LOG_TRACE("mock record %s", expected.to_string().c_str());
 	if (expected.has_return_type())
 		mock_set_state(MOCK_STATE_RECORD_DONE_WAITING_RETURN);
 	else
@@ -373,9 +379,12 @@ extern void mock_call(const std::vector<std::shared_ptr<mock_value_wrapper>>& pa
 	auto& expected = g_expected_calls.front();
 	if (!expected.match(call))
 	{
-		FAIL("Mock expected %s actual %s.", expected.to_string().c_str(), call.to_string().c_str());
+		LOG_ALWAYS("Expected %s defined %s:%zd", expected.to_string().c_str(), expected.get_filename(), expected.get_line());
+		LOG_ALWAYS("Actual   %s", call.to_string().c_str());
+		FAIL("Mock mismatched call.");
 		throw std::runtime_error("Mock mismatched call.");
 	}
+	LOG_TRACE("mock play %s", expected.to_string().c_str());
 	if (expected.has_exception())
 	{
 		auto exception = expected.get_exception();

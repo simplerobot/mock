@@ -22,7 +22,7 @@
 
 
 #define EXPECT(CALL) mock_begin_expect(#CALL, __FILE__, __LINE__); CALL ; mock_end_expect(#CALL)
-#define _AND_DO(CALL) ; mock_add_callback([&](){ CALL; })
+#define _AND_DO(CALL) ; mock_add_callback([=](){ CALL; })
 #define _AND_RETURN(VALUE) ; mock_add_return(mock_allocate_wrapper(VALUE), #VALUE)
 #define _AND_THROW(EXCEPTION) ; mock_add_exception(mock_allocate_wrapper_simple(EXCEPTION))
 
